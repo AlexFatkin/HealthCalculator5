@@ -1,5 +1,4 @@
 import streamlit as st
-
 import health_sys as hs
 
 hs.view_console = False  # Не выводить графику в консоль

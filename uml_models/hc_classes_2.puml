@@ -50,11 +50,11 @@ input()
 output()
 }
 class Harrington1{
-y_bad
-y_good
+x_begin
+x_end
 }
 class Harrington2{
-y_optimum
+x_optimum
 }
 class Harrington{
 h_level

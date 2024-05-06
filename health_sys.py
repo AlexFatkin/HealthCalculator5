@@ -230,6 +230,7 @@ class Harrington:
         """Ахназарова С.Л., Кафаров В.В.; Методы оптимизации эксперимента в химической технологии;1985, с.209"""
         self.health = _subsys  # Ссылка на родителя
         self.type = 'one'  # one, max, min
+        self.h_level = None
 
     def data(self, json_name: str):
         ...
@@ -312,6 +313,50 @@ class HarringtonOne(Harrington):
         """ Ахназарова с. 207   d = exp [—ехр(— у')]  у’ = bo + b1 * у' """
         self.h_level = math.exp(-math.exp(-(self.b_0 + self.b_1 * y)))  # Считаем d по Ахназаровой с.207
         return self.h_level  # Частная функция желательности d
+
+
+class HarringtonHalfTwo(Harrington):
+    """Половина двухстороннего критерия Харрингтона"""
+
+    def __init__(self, _subsys: Subsys = None):
+        """Ахназарова С.Л., Кафаров В.В.; Методы оптимизации эксперимента в химической технологии;1985, с.209"""
+        super().__init__(_subsys)
+        self.health = _subsys  # Ссылка на родителя
+        # self.health = _health  # Ссылка на родителя
+        self.d_good = 0.8  # Хороший результат по Харрингтону
+        self.y_good = 25  # 65
+        self.d_bad = 0.2  # Хороший результат по Харрингтону
+        self.y_bad = 45  # 10
+        self.opt_d = 1
+        self.y_optimum = 20.5
+        self.d: float = 0  # Частная функция желательности Харрингтона для параметра y
+        self.d_param = 0.75  # 0.6
+        self.y1 = None
+        self.y = None
+        self.n = None
+        self.h_level: float = 0  # Частная функция желательности (d) Харрингтона для параметра y
+
+    def data(self, json_name):
+        with open(json_name, 'r') as f:
+            data = json.load(f)
+        # self.y_good = data["min"]["good"]
+        # self.y_bad = data["min"]["bad"]
+        self.y_good = data["max"]["bad"]
+        self.y_bad = data["max"]["good"]
+        self.y_optimum = data["optimum"]
+        self.opt_d = data["opt_d"]
+
+    def load(self):
+        """ Ахназарова с. 207   d=exp[—(|у'|)**n  у_d = 2y- (y_max + y_min) / (y_max - y_min) ' """
+        self.y1 = (2 * self.y_optimum - (self.y_good + self.y_bad)) / (self.y_good - self.y_bad)  # tested
+        # self.n = (math.log(math.log(1 / self.d_param))) / (math.log(math.fabs(self.y1)))
+        self.n = (math.log(math.log(1 / self.d_good))) / (math.log(math.fabs(self.y1)))
+        pass
+
+    def calc(self, x: float):  # Написано Матвеем
+        self.y = (2 * x - (self.y_good + self.y_bad)) / (self.y_good - self.y_bad)
+        self.d = math.exp(-(math.fabs(self.y) ** self.n))
+        return self.d
 
 
 class HarringtonTwoOne(Harrington):
@@ -493,21 +538,21 @@ class Harrington2:
         self.d_good = 0.8  # Хороший результат по Харрингтону
         self.d: float = 0  # Частная функция желательности Харрингтона для параметра y
 
-        self.y_max = 25  # 65
-        self.y_min = 18.5  # 10
+        self.y_max = 35  # 25
+        self.y_min = 15  # 18,5
         self.current_IMT = None
-        self.param = 20.5
-        self.d_param = 0.75  # 0.6
+        self.param = 21
+        self.d_param = 0.7  # 0.6
         self.y1 = None
         self.y = None
         self.n = None
 
-    def calc(self, y_max: float, y_min: float, y: float):
+    def calc(self, y: float):
         """ Ахназарова с. 207   d=exp[—(|у'|)**n  у_d = 2y- (y_max + y_min) / (y_max - y_min) ' """
-        y_d = (2 * y - (y_max + y_min)) / (y_max - y_min)  # Считаем у_d из уравнения
+        y_d = (2 * self.param - (self.y_max + self.y_min)) / (self.y_max - self.y_min)  # Считаем у_d из уравнения
         z = math.log(math.fabs(y_d))
-        n = math.log(math.log(1 / self.d_good) / z)  # Считаем показатель степени
-        self.d = math.exp(-math.fabs(y_d) ** n)  # Считаем d по Ахназаровой с.207
+        n = math.log(math.log(1 / self.d_param) / z)  # Считаем показатель степени
+        self.d = math.exp(-math.fabs(y) ** n)  # Считаем d по Ахназаровой с.207
         return self.d
 
     def calc2(self, x: float):  # Написано Матвеем
@@ -525,13 +570,15 @@ class IMT(Subsys):
         super().__init__()
         self.health = _health  # Ссылка на родителя
         self.name = 'ИМТ'
-        self.data = 'imt.json'
+        self.data = ''  # 'imt.json'
         self.harrington = HarringtonTwoOne()
+        # self.harrington = HarringtonHalfTwo()
         self.current_value = None  # Текущее показание
         self.h_level = None  # Показатель Харрингтона
 
     def load(self, json_name):
         # json_name = self.__class__.__name__.lower() + '.json'
+        self.data = json_name
         self.harrington.data(json_name)
         self.harrington.load()
 
@@ -663,85 +710,8 @@ def Calibrate(json_name: str):
     return plt
 
 
-if __name__ == "__main__":
-    set_application_parameters()
-    user = User()
-    # user.gender = 'women'
-    user.health = Health(user)
-
-    imt = IMT()
-    imt.health = user.health
-    imt.load('imt.json')
-    imt.calc(90, 170)
-    user.health.add_subsystem(imt)
-
-    resp = Resp()
-    resp.health = user.health
-    resp.load('resp.json')
-    resp.calc(40)
-    user.health.add_subsystem(resp)
-
-    heart = Heart()
-    heart.health = user.health
-    heart.load('heart.json')
-    heart.calc(60)
-    user.health.add_subsystem(heart)
-
-    values = [int(syb.h_level * 100) for syb in user.health.subsystems.values()]
-    keys = [syb.name for syb in user.health.subsystems.values()]
-
-    user.health.create_diagram(keys, values)
-    for subsys in list(user.health.subsystems.values()):
-        # json_file_name = subsys.__class__.__name__.lower() + '.json'
-        subsys.calibrate(subsys.data, subsys.current_value, subsys.h_level * 100)
-
-    # print(keys)
-    # print(values)
-
-    # user.health.subsystems['Resp'] = resp
-    # imt = IMT()
-    # imt.load('imt.json')
-    # h_level, value = imt.calc(weight=30, height=170)
-    # print(f'h_level {h_level}, value {value}')
-    # imt.calibrate('imt.json')
-    #
-    # resp = Resp()
-    # resp.health = Health()
-    # resp.health.user = User()
-    # resp.health.user.gender = 'man'
-    # resp.load('resp.json')
-    # h_level, value = resp.calc(val=65)
-    # # print(f'h_level {h_level}, value {value}')
-    # resp.calibrate('resp.json')
-
-    # heart = Heart()
-    # heart.load('heart.json')
-    # h_level, value = heart.calc(gender='women', age=26, pulse=66)
-    # print(f'h_level {h_level}, value {value}')
-    # heart.calibrate('heart.json')
-
-    # user = User()
-    # fig2 = user.health.create_diagram(['ИМТ', 'Сердце', 'Легкие'], [40, 70, 80])
-    # plt.show()
-
-    # user_1 = User()  # Создаем объект Пользователь
-    # user_1.health.pulse.calc(71)
-    # objects = user_1.health.subsystems
-    # objects[user_1.health.resp.__class__.__name__] = user_1.health.resp
-    # objects[user_1.health.pulse.__class__.__name__] = user_1.health.pulse
-    # print(list(objects.keys()))  # ['Pulse', 'Health']
-    # print(list(objects.values()))  # [<__main__.Pulse object >, <__main__.Health object>]
-
-    # pulse2 = Pulse()
-    # pulse2.calc(69)
-
-    # print('Показатели Харрингтона и диаграмма здоровья отрисованы')
-
-    # user_1.health.create_diagram(['ИМТ', 'Сердце', 'Легкие', 'Разум'], [52, 81, 92, 88])
-    # user_1.health.create_diagram(['ИМТ', 'Сердце', 'Легкие'], [52, 81, 92])
-    # user_1.health.create_diagram(['ИМТ', 'Сердце',], [52, 81])
-    # user_1.health.create_diagram(['ИМТ', ], [52, ])
-
+def HarringtonShow():
+    """Просмотр """
     # with open('imt.json', 'r') as f:
     #     data = json.load(f)
     #
@@ -756,3 +726,165 @@ if __name__ == "__main__":
     #     else:
     #         d = data["opt_d"]
     #     d_range_1.append(d)
+
+    # imt_range = range(10, 65, 1)
+    # imt_range = range(5, 81, 1)
+    # har_1 = Harrington1()
+    # y_bad_min = 10
+    # y_good_min = 15
+    # y_bad_max = 64
+    # y_good_max = 45
+    # y_optimum = 21
+    # d_range_1 = []
+    # for y in imt_range:
+    #     if y > y_optimum:
+    #         d = har_1.calc(y_good_max, y_bad_max, y)
+    #     elif y < y_optimum:
+    #         d = har_1.calc(y_good_min, y_bad_min, y)
+    #     else:
+    #         d = 0.98
+    #     d_range_1.append(d)
+
+    # print(d_range)
+    # plt.plot(imt_range, d_range_1, label="two one side", marker="o", ms=6, mfc='w')
+    imt_range = range(21, 81, 1)
+    har_2 = Harrington2()
+    d_range_2 = []
+    for y in imt_range:
+        d_range_2.append(har_2.calc2(y))
+    plt.plot(imt_range, d_range_2, label="two side", marker="o", ms=6, mfc='w')
+    # plt.grid()
+    plt.title(f'Harrington1 and Harrington2')
+    plt.ylabel('health part', loc='top', fontsize=12)  # fontweight="bold"
+    plt.xlabel('imt', loc='right', fontsize=12)
+    plt.legend(loc='best')
+    plt.show()
+
+
+def Half_harrington(x_beg: int, x_end: int, x: int):
+    """Расчет функции желательности Харрингтона от 0 до 1"""
+    # x = np.linspace(x_beg, x_end)  # Все значения исходной величины
+    x01 = (((2 * x - (x_end + x_beg)) / (x_end - x_beg)) + 1) / 2  # преобразуем в безразмерную шкалу от 0 до 1
+    # m = np.log(np.log(1 / 0.8)) / np.log(0.6)  # m = 3 (0.8, 0.6) - подобранные коэффициенты Харрингтона
+    m = 3  # Подобранные коэффициенты Харрингтона
+    k = 2  # Загиб концов графика
+    d = np.exp(- (x01 * k) ** m)  # расчет функции желательности от 0 до 1
+    if d > 1.0:
+        d = 1.0
+    return d
+
+
+def Half_harrington_calibrate(x_beg: int, x_end: int):
+    """Одна из калибровочной кривой ветвей Двухстороннего критерия Харрингтона"""
+    # x_list = list(range(x_beg, x_end))  # Все значения исходной величины
+    n = int(math.fabs(x_end - x_beg) + 1)
+    x_list = list(np.linspace(x_beg, x_end, n))  # Все значения исходной величины
+    # list(np.linspace(50, 45, (50 - 45 + 1))))
+
+    d_list = []
+    for x in x_list:
+        d = Half_harrington(x_beg, x_end, x)
+        d_list.append(d)  # Расчет функции желательности Харрингтона от 0 до 1
+    return x_list, d_list
+    # plt.plot(x_list, d_list, marker="o", ms=6, mfc='w')  # вывод графика функции желательности исходной величины
+    # plt.xlabel('Исходный параметр', loc='right', fontsize=12)
+    # plt.ylabel('Функция желательности', loc='top', fontsize=12)
+
+
+def Two_harrington_calibrate(x_beg: int, x_optimum: int, x_end: int):
+    """Две ветви калибровочной кривой Двухстороннего критерия Харрингтона"""
+    x = []
+    d = []
+    x1, d1 = Half_harrington_calibrate(x_optimum, x_beg)
+    x.extend(x1[::-1])
+    d.extend(d1[:: -1])
+    x2, d2 = Half_harrington_calibrate(x_optimum, x_end)
+    x.extend(x2)
+    d.extend(d2)
+    plt.plot(x, d, marker="o", ms=6, mfc='w')  # вывод графика функции желательности исходной величины
+    plt.xlabel('Исходный параметр', loc='right', fontsize=12)
+    plt.ylabel('Функция желательности', loc='top', fontsize=12)
+    plt.show()
+
+
+def harr_two_one():
+    # global user
+    user = User()
+    # user.gender = 'women'
+    user.health = Health(user)
+    imt = IMT()
+    imt.health = user.health
+    imt.load('imt.json')
+    imt.calc(50, 170)
+    user.health.add_subsystem(imt)
+    resp = Resp()
+    resp.health = user.health
+    resp.load('resp.json')
+    resp.calc(40)
+    user.health.add_subsystem(resp)
+    heart = Heart()
+    heart.health = user.health
+    heart.load('heart.json')
+    heart.calc(60)
+    user.health.add_subsystem(heart)
+    values = [int(syb.h_level * 100) for syb in user.health.subsystems.values()]
+    keys = [syb.name for syb in user.health.subsystems.values()]
+    user.health.create_diagram(keys, values)
+    for subsys in list(user.health.subsystems.values()):
+        # json_file_name = subsys.__class__.__name__.lower() + '.json'
+        subsys.calibrate(subsys.data, subsys.current_value, subsys.h_level * 100)
+
+
+class HalfHarrington(Harrington):
+    """Ахназарова С.Л., Кафаров В.В.; Методы оптимизации эксперимента в химической технологии;1985, с.209"""
+
+    def __init__(self, _subsys: Subsys = None):
+        """Ахназарова С.Л., Кафаров В.В.; Методы оптимизации эксперимента в химической технологии;1985, с.209"""
+        super().__init__(_subsys)
+        self.health = _subsys  # Ссылка на родителя
+        self.data = None
+
+    def data_load(self, json_name: str):
+        with open(json_name, 'r') as f:
+            self.data = json.load(f)
+
+    def calc(self, x):
+        x01 = (((2 * x - (self.data['man']['end'] + self.data['man']['beg'])) /
+                (self.data['man']['end'] - self.data['man']['beg'])) + 1) / 2  # в безразмерную шкалу от 0 до 1
+        # m = np.log(np.log(1 / 0.8)) / np.log(0.6)  # m = 3 (0.8, 0.6) - подобранные коэффициенты Харрингтона
+        m = 3  # Подобранные коэффициенты Харрингтона
+        k = 2  # Загиб концов графика
+        self.h_level = np.exp(- (x01 * k) ** m)  # расчет функции желательности от 0 до 1
+        if self.h_level > 1.0:
+            self.h_level = 1.0
+        return self.h_level
+
+
+if __name__ == "__main__":
+    harr_two_one()  # Old
+
+    Two_harrington_calibrate(10, 21, 80)
+
+    # def calibre():
+    #     hh = HalfHarrington()
+    #     hh.data_load('resp2.json')
+    #     n = int(math.fabs(hh.data['man']['beg'] - hh.data['man']['end']) + 1)
+    #     x_list = list(np.linspace(hh.data['man']['beg'], hh.data['man']['end'], n))  # Значения исходной величины
+    #     y_list = [hh.calc(x) for x in x_list]
+    #     print(x_list, y_list)
+
+    # calibre()
+
+    # print(Half_harrington(20, 50, 60))
+    # print(Half_harrington(50, 20, 10))
+    # print(Half_harrington(50, 20, 50))
+    # print(Half_harrington(20, 50, 20))
+    # print(Half_harrington(50, 20, 60))
+    # print(Half_harrington(20, 50, 10))
+    # print(Half_harrington(20, 50, 60))
+
+# print(keys)
+# print(values)
+# user = User()
+# fig2 = user.health.create_diagram(['ИМТ', 'Сердце', 'Легкие'], [40, 70, 80])
+# plt.show()

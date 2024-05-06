@@ -1,20 +1,17 @@
 {
   "name": "индекс массы тела",
   "optimum": 21,
-  "opt_d": 0.98,
-  "min":
-      {
-        "good": 15,
-        "bad": 10
-      },
-  "max":
-      {
-        "good": 25,
-        "bad": 64
-      },
-  "range":
-      {
-        "begin":0,
-        "end": 80
-      }
+  "opt_d": 1,
+  "min": {
+    "good": 17,
+    "bad": 12
+  },
+  "max": {
+    "good": 25,
+    "bad": 45
+  },
+  "range": {
+    "begin": 0,
+    "end": 80
+  }
 }
