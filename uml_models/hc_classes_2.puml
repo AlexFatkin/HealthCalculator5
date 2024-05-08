@@ -35,7 +35,7 @@ weight
 height
 }
 class Health{
-sum_h_level
+sum_level
 add_subsys()
 diagram()
 }
@@ -50,25 +50,24 @@ input()
 output()
 }
 class Harrington1{
-x_begin
-x_end
+begin
+end
 }
-class Harrington2{
-x_optimum
+class Harrington21{
+optimum
 }
 class Harrington{
-h_level
-load()
+level
 calc()
 }
-Harrington2 "1"-"2" Harrington1
+Harrington21 "1"-"2" Harrington1
 Heart -|> Resp
 IMT --|> Subsys
 Resp --|> Subsys
 User -- Health
 'Subsys <|-  Resp
 Health "1"-"*"  Subsys
-Harrington2 --|> Harrington
+Harrington21 --|> Harrington
 Harrington1 --|> Harrington
 Subsys - Harrington
 @enduml

@@ -835,7 +835,80 @@ def harr_two_one():
         subsys.calibrate(subsys.data, subsys.current_value, subsys.h_level * 100)
 
 
-class HalfHarrington(Harrington):
+class Subsys2(abc.ABC):
+    def __init__(self):
+        self.harrington = Harrington()
+        self.health = None  # Ссылка на родителя
+        self.data = ''  # Название файла json с загрузочными данными
+        self.name = ''  # Название параметра
+        self.current_value = None  # Текущее показание
+        self.h_level = None  # Показатель Харрингтона
+
+    @abc.abstractmethod
+    def load(self, json_name):
+        """Загружаем начальные данные"""
+        ...
+
+    @abc.abstractmethod
+    def calc(self):
+        """Считаем функцию желательности"""
+        ...
+
+    def calibrate(self, json_name: str, x: int, z: int) -> plt:
+        """Калибровочная диаграмма"""
+        self.harrington.data(json_name)
+        self.harrington.load()
+        with open(json_name, 'r', encoding='utf-8') as f:
+            self.data = json.load(f)
+        imt_range = range(self.data["range"]["begin"], self.data["range"]["end"], 1)
+
+        d_range_1 = []
+        for y in imt_range:
+            d = self.harrington.calc(y)
+            d_range_1.append(d * 100)
+        plt.plot(imt_range, d_range_1, label="Калибровка", marker="o", ms=6, mfc='w')
+        # plt.grid()
+        plt.title(f'Калибровочная диаграмма "{self.data["name"]}"')
+        plt.ylabel(f'Желательность параметра ", %', loc='top', fontsize=12)
+        plt.xlabel(f'Значение параметра ', loc='right', fontsize=12)
+        plt.axhline(y=20, color='black', linestyle='--')
+        plt.text(self.data["range"]["begin"], 15, 'Плохо', fontsize=15)
+        plt.axhline(y=80, color='black', linestyle='--')
+        plt.text(self.data["range"]["begin"], 75, 'Хорошо', fontsize=15)
+        plt.legend(loc='best')
+        plt.plot(x, z, 'ro', markersize=12, )
+        plt.text(x + 4, z - 2, '  Ваше\nзначение', fontsize=15)
+        if view_console:
+            plt.show()  # Показываем график в приложении
+        return plt
+
+
+class IMT2(Subsys2):
+    """Управление объектами """
+
+    def __init__(self, _health: Health = None):
+        super().__init__()
+        self.health = _health  # Ссылка на родителя
+        self.name = 'ИМТ'
+        self.data = ''  # 'imt.json'
+        self.harrington = HarringtonTwoOne()
+        # self.harrington = HarringtonHalfTwo()
+        self.current_value = None  # Текущее показание
+        self.h_level = None  # Показатель Харрингтона
+
+    def load(self, json_name):
+        # json_name = self.__class__.__name__.lower() + '.json'
+        self.data = json_name
+        self.harrington.data(json_name)
+        self.harrington.load()
+
+    def calc(self, weight: float = 80, height: int = 170):
+        self.current_value = weight / ((height / 100) ** 2)
+        self.h_level = self.harrington.calc(self.current_value)
+        return int(self.h_level * 100), round(self.current_value)
+
+
+class Harrington1(Harrington):
     """Ахназарова С.Л., Кафаров В.В.; Методы оптимизации эксперимента в химической технологии;1985, с.209"""
 
     def __init__(self, _subsys: Subsys = None):
@@ -852,8 +925,35 @@ class HalfHarrington(Harrington):
         x01 = (((2 * x - (self.data['man']['end'] + self.data['man']['beg'])) /
                 (self.data['man']['end'] - self.data['man']['beg'])) + 1) / 2  # в безразмерную шкалу от 0 до 1
         # m = np.log(np.log(1 / 0.8)) / np.log(0.6)  # m = 3 (0.8, 0.6) - подобранные коэффициенты Харрингтона
-        m = 3  # Подобранные коэффициенты Харрингтона
-        k = 2  # Загиб концов графика
+        m = 3  # Подобранные коэффициенты Харрингтона: m = 3 показывает S образную кривую
+        k = 2  # k = 2 Обеспечивает загиб нижних концов графика
+        self.h_level = np.exp(- (x01 * k) ** m)  # расчет функции желательности от 0 до 1
+        if self.h_level > 1.0:
+            self.h_level = 1.0
+        return self.h_level
+
+
+class Harrington21(Harrington):
+    """Ахназарова С.Л., Кафаров В.В.; Методы оптимизации эксперимента в химической технологии;1985, с.209"""
+
+    def __init__(self, _subsys: Subsys = None):
+        """Ахназарова С.Л., Кафаров В.В.; Методы оптимизации эксперимента в химической технологии;1985, с.209"""
+        super().__init__(_subsys)
+        self.health = _subsys  # Ссылка на родителя
+        self.data = None
+        self.har_beg = None
+        self.har_end = None
+
+    def data_load(self, json_name: str):
+        with open(json_name, 'r') as f:
+            self.data = json.load(f)
+
+    def calc(self, x):
+        x01 = (((2 * x - (self.data['man']['end'] + self.data['man']['beg'])) /
+                (self.data['man']['end'] - self.data['man']['beg'])) + 1) / 2  # в безразмерную шкалу от 0 до 1
+        # m = np.log(np.log(1 / 0.8)) / np.log(0.6)  # m = 3 (0.8, 0.6) - подобранные коэффициенты Харрингтона
+        m = 3  # Подобранные коэффициенты Харрингтона: m = 3 показывает S образную кривую
+        k = 2  # k = 2 Обеспечивает загиб нижних концов графика
         self.h_level = np.exp(- (x01 * k) ** m)  # расчет функции желательности от 0 до 1
         if self.h_level > 1.0:
             self.h_level = 1.0
@@ -863,7 +963,7 @@ class HalfHarrington(Harrington):
 if __name__ == "__main__":
     harr_two_one()  # Old
 
-    Two_harrington_calibrate(10, 21, 80)
+    # Two_harrington_calibrate(10, 21, 80)
 
     # def calibre():
     #     hh = HalfHarrington()
