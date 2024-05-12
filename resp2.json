@@ -3,16 +3,11 @@
   "man":
       {
         "beg": 46,
-        "end": 18
+        "end": 0
       },
   "women":
       {
-        "beg": 41,
-        "end": 15
-      },
-  "range":
-      {
-        "beg": 0,
-        "end": 100
+        "beg":41,
+        "end": 0
       }
 }

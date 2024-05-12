@@ -908,22 +908,22 @@ class IMT2(Subsys2):
         return int(self.h_level * 100), round(self.current_value)
 
 
-class Harrington1(Harrington):
+class Harrington1:
     """Ахназарова С.Л., Кафаров В.В.; Методы оптимизации эксперимента в химической технологии;1985, с.209"""
 
     def __init__(self, _subsys: Subsys = None):
         """Ахназарова С.Л., Кафаров В.В.; Методы оптимизации эксперимента в химической технологии;1985, с.209"""
-        super().__init__(_subsys)
+        # super().__init__(_subsys)
         self.health = _subsys  # Ссылка на родителя
         self.data = None
+        self.h_level = 1.0
 
     def data_load(self, json_name: str):
         with open(json_name, 'r') as f:
             self.data = json.load(f)
 
-    def calc(self, x):
-        x01 = (((2 * x - (self.data['man']['end'] + self.data['man']['beg'])) /
-                (self.data['man']['end'] - self.data['man']['beg'])) + 1) / 2  # в безразмерную шкалу от 0 до 1
+    def calc(self, beg, end, x):
+        x01 = (((2 * x - (end + beg)) / (end - beg)) + 1) / 2  # в безразмерную шкалу от 0 до 1
         # m = np.log(np.log(1 / 0.8)) / np.log(0.6)  # m = 3 (0.8, 0.6) - подобранные коэффициенты Харрингтона
         m = 3  # Подобранные коэффициенты Харрингтона: m = 3 показывает S образную кривую
         k = 2  # k = 2 Обеспечивает загиб нижних концов графика
@@ -961,17 +961,34 @@ class Harrington21(Harrington):
 
 
 if __name__ == "__main__":
-    harr_two_one()  # Old
+    harr_two_one()  # Old version
 
     # Two_harrington_calibrate(10, 21, 80)
 
-    # def calibre():
-    #     hh = HalfHarrington()
-    #     hh.data_load('resp2.json')
-    #     n = int(math.fabs(hh.data['man']['beg'] - hh.data['man']['end']) + 1)
-    #     x_list = list(np.linspace(hh.data['man']['beg'], hh.data['man']['end'], n))  # Значения исходной величины
-    #     y_list = [hh.calc(x) for x in x_list]
-    #     print(x_list, y_list)
+    def calibre():
+        sex = 'women'
+        hh = Harrington1()
+        hh.data_load('resp2.json')
+        n = int(math.fabs(hh.data[sex]['beg'] - hh.data[sex]['end']) + 1)
+        beg = hh.data[sex]['beg']
+        end = hh.data[sex]['end']
+        x_list = list(np.linspace(hh.data[sex]['beg'], hh.data[sex]['end'], n))  # Значения исходной величины
+        y_list = [hh.calc(beg, end, x)*100 for x in x_list]        # print(x_list, y_list)
+
+        plt.plot(x_list, y_list, label="Калибровка", marker="o", ms=6, mfc='w')
+        # plt.grid()
+        plt.title(f'Калибровочная диаграмма')
+        plt.ylabel('Желательность, %', loc='top', fontsize=12)  # fontweight="bold"
+        plt.xlabel('Значение', loc='right', fontsize=12)
+        plt.legend(loc='best')
+        delta = -30
+        w = beg + delta
+        z = hh.calc(beg, end, w)*100
+        plt.plot(w, z, 'ro', markersize=12, )
+        plt.text(w, z-5, '  Ваше\nзначение', fontsize=15)
+        plt.show()
+        return plt
+
 
     # calibre()
 
